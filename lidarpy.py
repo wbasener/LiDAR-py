@@ -40,48 +40,54 @@ class lidar:
         self.nCols = len(self.x_bins)
 
         # Compute standard deviation for each cell
-        grid_min, _, _, _ = binned_statistic_2d(
+        self.grid_min, _, _, _ = binned_statistic_2d(
             x=self.coords[:, 0],
             y=self.coords[:, 1],
             values=self.coords[:, 2],
             statistic='min',
             bins=[self.x_bins, self.y_bins])
         # Compute standard deviation for each cell
-        grid_max, _, _, _ = binned_statistic_2d(
+        self.grid_max, _, _, _ = binned_statistic_2d(
             x=self.coords[:, 0],
             y=self.coords[:, 1],
             values=self.coords[:, 2],
             statistic='max',
             bins=[self.x_bins, self.y_bins])
         # Compute standard deviation for each cell
-        grid_mean, _, _, _ = binned_statistic_2d(
+        self.grid_mean, _, _, _ = binned_statistic_2d(
             x=self.coords[:, 0],
             y=self.coords[:, 1],
             values=self.coords[:, 2],
             statistic='mean',
             bins=[self.x_bins, self.y_bins])
         # Compute standard deviation for each cell
-        grid_stddev, _, _, _ = binned_statistic_2d(
+        self.grid_stddev, _, _, _ = binned_statistic_2d(
             x=self.coords[:, 0],
             y=self.coords[:, 1],
             values=self.coords[:, 2],
             statistic='std',
             bins=[self.x_bins, self.y_bins])
         
-        for data in [grid_min, grid_max, grid_mean, grid_stddev]:
+        for data in [self.grid_min, self.grid_max, self.grid_mean, self.grid_stddev]:
             mask = np.isnan(data)
             data[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), data[~mask])
         
+        # Create the dem
+        self.create_dem()
+        
         self.features = []
         self.feature_names = []
-        self.features.append(grid_min)
+        self.features.append(self.grid_min)
         self.feature_names.append('min')
-        self.features.append(grid_max)
+        self.features.append(self.grid_max)
         self.feature_names.append('max')
-        self.features.append(grid_mean)
+        self.features.append(self.grid_mean)
         self.feature_names.append('mean')
-        self.features.append(grid_stddev)
+        self.features.append(self.grid_stddev)
         self.feature_names.append('stddev')
+    
+    def create_dem(self):
+        pass
         
     
     def show_im(self, i=0):
