@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from scipy.stats import binned_statistic_2d
 from PIL import Image
+from scipy import signal
+from scipy import ndimage
 
 
 class lidar:
@@ -69,11 +71,12 @@ class lidar:
             bins=[self.x_bins, self.y_bins])
         
         for data in [self.grid_min, self.grid_max, self.grid_mean, self.grid_stddev]:
-            mask = np.isnan(data)
-            data[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), data[~mask])
+            data = self.interpolate_nans(data)
         
         # Create the dem
-        self.create_dem()
+        self.dem = self.create_dem()
+        self.height = self.create_height()
+        self.min_dem = self.create_min_dem()
         
         self.features = []
         self.feature_names = []
@@ -85,14 +88,50 @@ class lidar:
         self.feature_names.append('mean')
         self.features.append(self.grid_stddev)
         self.feature_names.append('stddev')
-    
-    def create_dem(self):
-        pass
+        self.features.append(self.dem)
+        self.feature_names.append('dem')
+        self.features.append(self.height)
+        self.feature_names.append('height')
+        self.features.append(self.min_dem)
+        self.feature_names.append('min_dem')
         
+        self.nFeatures = len(self.features)
+        
+    def interpolate_nans(self, data):
+        mask = ~np.isnan(data)
+        # wile the min of the mask is False, same as while nans exists in the data
+        while ~np.min(mask):
+            edges = np.logical_xor(mask, ndimage.binary_dilation(mask))
+            pts = np.where(edges)
+            x_rng = [[np.max((x-1,0)),np.min((x+1,self.nCols))+1] for x in pts[0]]
+            y_rng = [[np.max((y-1,0)),np.min((y+1,self.nRows))+1] for y in pts[1]]
+            for x,y,xr,yr in zip(pts[0],pts[1],x_rng,y_rng):
+                data[x,y] = np.nanmean(data[xr[0]:xr[1], yr[0]:yr[1]])
+            mask = ~np.isnan(data)
+        return data
+        
+    def create_dem(self):
+        dem = ndimage.minimum_filter(self.grid_min, size=2)
+        dem = ndimage.median_filter(dem, size=2)
+        dem = ndimage.minimum_filter(dem, size=2)
+        dem = ndimage.median_filter(dem, size=2)
+        dem = ndimage.minimum_filter(dem, size=2)
+        dem = ndimage.median_filter(dem, size=2)
+        dem = ndimage.minimum_filter(dem, size=2)
+        return dem
+        
+    def create_height(self):
+        height = self.grid_max - self.dem
+        return height      
+        
+    def create_min_dem(self):
+        height = self.grid_min - self.dem
+        return height        
     
     def show_im(self, i=0):
         plt.imshow(self.features[i])
         plt.title(self.feature_names[i]+' LiDAR Heights in Each Cell')
+        plt.colorbar();
         plt.show()            
 
     def save_tiff(self, fname):
@@ -127,7 +166,7 @@ class lidar:
         if self.cell_size == 0:
             self.create_raster()  
                 
-        select_indices = [0,2,3]
+        select_indices = [6,3,5]
         arrays = [
             (255*(self.features[i]-np.min(self.features[i]))/(np.max(self.features[i])-np.min(self.features[i]))).astype(np.uint8) 
              for i in select_indices]
