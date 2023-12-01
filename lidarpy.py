@@ -12,12 +12,12 @@ from PIL import Image
 
 
 class lidar:
-    def __init__(self, fname):
+    def __init__(self, fname, cell_size):
         self.las = laspy.read(fname)
         self.coords = np.asarray([self.las.x,self.las.y,self.las.z]).T
         self.nPts = len(self.las.x)
         self.cell_size = 0 # a value of - indicates thatno raster image has been created
-        self.create_raster()
+        self.create_raster(cell_size)
 
     def create_raster(self, cell_size = 2.5):
         # Inputs: 
@@ -37,7 +37,9 @@ class lidar:
         self.x_bins = np.arange(self.x_min, self.x_max, cell_size)
         self.y_bins = np.arange(self.y_min, self.y_max, cell_size)
         self.nRows = len(self.y_bins)
+        #print(self.nRows)
         self.nCols = len(self.x_bins)
+        #print(self.nCols)
 
         # Compute standard deviation for each cell
         self.grid_min, _, _, _ = binned_statistic_2d(
@@ -117,7 +119,7 @@ class lidar:
         with rasterio.open(fname+'.tif', 'w', **profile) as dst:
             for i, [feature, feature_name] in enumerate(zip(self.features,self.feature_names)):
                 dst.write_band(i+1, feature.astype('float32'))
-                dst.set_band_description(1, feature_name)
+                dst.set_band_description(i+1, feature_name)
     
     
     def save_png(self, fname):
@@ -131,6 +133,10 @@ class lidar:
         arrays = [
             (255*(self.features[i]-np.min(self.features[i]))/(np.max(self.features[i])-np.min(self.features[i]))).astype(np.uint8) 
              for i in select_indices]
+        #print(len(arrays))
+        #print(len(arrays[0]))
+        #print(len(arrays[0][0]))
         arr = np.stack(arrays, axis=2)
+        #print(arr.shape)
         im = Image.fromarray(arr)
         im.save(fname+'.png', quality=100, subsampling=0)
