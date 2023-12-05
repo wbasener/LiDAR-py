@@ -11,6 +11,7 @@ from scipy.stats import binned_statistic_2d
 from PIL import Image
 from scipy import signal
 from scipy import ndimage
+from skimage import feature
 
 
 class lidar:
@@ -77,6 +78,7 @@ class lidar:
         self.dem = self.create_dem()
         self.height = self.create_height()
         self.min_dem = self.create_min_dem()
+        #self.edges = self.create_edges()
         
         self.features = []
         self.feature_names = []
@@ -94,6 +96,8 @@ class lidar:
         self.feature_names.append('height')
         self.features.append(self.min_dem)
         self.feature_names.append('min_dem')
+        #self.features.append(self.edges)
+        #self.feature_names.append('edges')
         
         self.nFeatures = len(self.features)
         
@@ -112,21 +116,33 @@ class lidar:
         
     def create_dem(self):
         dem = ndimage.minimum_filter(self.grid_min, size=2)
-        dem = ndimage.median_filter(dem, size=2)
-        dem = ndimage.minimum_filter(dem, size=2)
-        dem = ndimage.median_filter(dem, size=2)
-        dem = ndimage.minimum_filter(dem, size=2)
-        dem = ndimage.median_filter(dem, size=2)
-        dem = ndimage.minimum_filter(dem, size=2)
+        dem = ndimage.median_filter(dem, size=8)
+        dem = ndimage.minimum_filter(dem, size=8)
+        dem = ndimage.median_filter(dem, size=8)
+        dem = ndimage.minimum_filter(dem, size=8)
+        dem = ndimage.median_filter(dem, size=8)
+        dem = ndimage.minimum_filter(dem, size=8)
+        dem = ndimage.median_filter(dem, size=8)
+        dem = ndimage.minimum_filter(dem, size=8)
+        dem = ndimage.median_filter(dem, size=8)
+        dem = ndimage.minimum_filter(dem, size=8)
         return dem
         
     def create_height(self):
         height = self.grid_max - self.dem
-        return height      
+        return height             
         
     def create_min_dem(self):
         height = self.grid_min - self.dem
-        return height        
+        return height  
+    
+    def create_edges(self):
+        edges = feature.canny(self.min_dem, sigma=1, use_quantiles=True, low_threshold=0.901, high_threshold=0.99)
+        sobel_h = ndimage.sobel(self.min_dem, 0)  # horizontal gradient
+        sobel_v = ndimage.sobel(self.min_dem, 1)  # vertical gradient
+        magnitude = np.sqrt(sobel_h**2 + sobel_v**2)
+        edges = edges*1 + magnitude/np.max(magnitude)
+        return edges
     
     def show_im(self, i=0):
         plt.imshow(self.features[i])
@@ -158,18 +174,86 @@ class lidar:
                 dst.write_band(i+1, feature.astype('float32'))
                 dst.set_band_description(1, feature_name)
     
-    
-    def save_png(self, fname):
+    def save_png(self, fname):      
+        
+        def stretch(X):
+            low = np.percentile(X, 1)
+            high = np.percentile(X,99.5)
+            X = (X-low)/(high-low)
+            X[X<0] = 0
+            X[X>1] = 1
+            return X
+      
+        if self.cell_size == 0:
+            self.create_raster()  
+                
+        select_indices = [5,1,6]
+        arrays = [
+            (255*(stretch(self.features[i]))).astype(np.uint8) 
+             for i in select_indices]
+        arr = np.stack(arrays, axis=2)
+        
+        im = Image.fromarray(arr)
+        im.save(fname+'.png', quality=100, subsampling=0)
+        
+     
+
+    def save_tiffs(self, fname, sz=640):
         # Inputs: 
         #   fname = file name to save as
         
         if self.cell_size == 0:
+            self.create_raster()     
+            
+        
+        ncTiles = int(np.floor(self.nCols/sz))
+        nrTiles = int(np.floor(self.nRows/sz))
+        for r in range(nrTiles):
+            for c in range(ncTiles):       
+        
+                # Define the raster metadata
+                transform = from_origin(self.x_min, self.y_max, self.cell_size, self.cell_size)
+                profile = {
+                    'driver': 'GTiff',
+                    'dtype': rasterio.float32,
+                    'count': len(self.features),
+                    'width': sz,
+                    'height': sz,
+                    'transform': transform,
+                    'crs': self.las.header.parse_crs()
+                }
+                
+                with rasterio.open(fname+'_'+str(r)+'_'+str(c)+'.tif', 'w', **profile) as dst:
+                    for i, [feature, feature_name] in enumerate(zip(self.features,self.feature_names)):
+                        chip_feature = feature[c*sz:(c+1)*sz,r*sz:(r+1)*sz]
+                        dst.write_band(i+1, chip_feature.astype('float32'))
+                        dst.set_band_description(1, feature_name)
+    
+    def save_pngs(self, fname, sz=640):      
+        
+        def stretch(X):
+            low = np.percentile(X, 1)
+            high = np.percentile(X,99.5)
+            X = (X-low)/(high-low)
+            X[X<0] = 0
+            X[X>1] = 1
+            return X
+      
+        if self.cell_size == 0:
             self.create_raster()  
                 
-        select_indices = [6,3,5]
+        select_indices = [5,1,6]
         arrays = [
-            (255*(self.features[i]-np.min(self.features[i]))/(np.max(self.features[i])-np.min(self.features[i]))).astype(np.uint8) 
+            (255*(stretch(self.features[i]))).astype(np.uint8) 
              for i in select_indices]
         arr = np.stack(arrays, axis=2)
-        im = Image.fromarray(arr)
-        im.save(fname+'.png', quality=100, subsampling=0)
+        
+        ncTiles = int(np.floor(self.nCols/sz))
+        nrTiles = int(np.floor(self.nRows/sz))
+        for r in range(nrTiles):
+            for c in range(ncTiles):
+                chip = arr[c*sz:(c+1)*sz,r*sz:(r+1)*sz,:]
+                im = Image.fromarray(chip)
+                im.save(fname+'_'+str(r)+'_'+str(c)+'.png', quality=100, subsampling=0)
+        
+        
