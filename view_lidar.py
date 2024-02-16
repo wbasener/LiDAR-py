@@ -5,7 +5,8 @@ import laspy
 
 #las = laspy.read('./points_lrg.las')
 #las = laspy.read('./points_fray_farm.laz')
-las = laspy.read('./USGS_LPC_VA_ChesapeakeBay_2015_LAS_S13_4993_30.laz')
+#las = laspy.read('./USGS_LPC_VA_ChesapeakeBay_2015_LAS_S13_4993_30.laz')
+las = laspy.read('./points_Usumacinta_Mexico.laz')
 
 points = np.asarray([las.x,las.y,las.z]).T
 print(points.shape)
