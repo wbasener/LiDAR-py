@@ -15,7 +15,7 @@ from skimage import feature
 
 
 class lidar:
-    def __init__(self, fname, cell_size):
+    def __init__(self, fname, cell_size = 2.5):
         self.las = laspy.read(fname)
         self.coords = np.asarray([self.las.x,self.las.y,self.las.z]).T
         self.nPts = len(self.las.x)
