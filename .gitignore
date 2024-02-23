@@ -6,9 +6,3 @@ __pycache__/
 data
 other
 environment.yml
-
-image_chips/*
-USGS_LPC_VA_ChesapeakeBay_2015_LAS_S13_4993_30.laz
-USGS_LPC_VA_ChesapeakeBay_2015_LAS_S13_4993_30.png
-USGS_LPC_VA_ChesapeakeBay_2015_LAS_S13_4993_30.tif
-__pycache__/lidarpy.cpython-311.pyc
